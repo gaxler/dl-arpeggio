@@ -1,0 +1,31 @@
+batch_size = 32
+num_epochs = 100
+
+[task]
+max_value = 37
+max_seq_len = 5
+"_generated field: max_batch_seq_len" = 12
+"_generated field: vocab_size" = 41
+
+[gpt]
+num_blocks = 7
+vocab_size = 41
+max_seq_len = 12
+embed_pdrop = 0.3
+
+[optimizers]
+lr = 0.001
+wd_lr = 0.001
+clip_grad_norm = 1.0
+weight_decay = 0.1
+adam_beta1 = 0.9
+adam_beta2 = 0.999
+
+[logging]
+steps_per_epoch = 10
+
+[gpt.attention]
+embed_dim = 128
+num_heads = 4
+attn_drop_prob = 0.3
+resid_drop_prob = 0.1
