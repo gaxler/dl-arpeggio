@@ -11,11 +11,13 @@ from jaxtyping import Array, Float, Bool, Int
 from .configs import AttentionConf, GPTConf
 from .normalizations import LayerNorm
 
+
 def _prng_split(key: jax.random.PRNGKey, num_splits: int):
-    """ Split PRNG key or return Nones """
+    """Split PRNG key or return Nones"""
     if key is None:
-        return (None, )*num_splits
+        return (None,) * num_splits
     return jrandom.split(key, num_splits)
+
 
 def gelu(x: Float[Array, "d"]) -> Float[Array, "d"]:
     gauss_const = math.sqrt(2.0 / math.pi)
@@ -213,7 +215,9 @@ class GPT(eqx.Module):
 
         self.final_ln = LayerNorm(self.embed_dim)
         block_keys = jrandom.split(blcoks_key, num=conf.num_blocks)
-        self.blocks = [TransformerBlock(conf=conf.attention, key=bk) for bk in block_keys]
+        self.blocks = [
+            TransformerBlock(conf=conf.attention, key=bk) for bk in block_keys
+        ]
         self.dropout = eqx.nn.Dropout(p=conf.embed_pdrop)
         self.final_ln = LayerNorm(self.embed_dim)
         self.classifier = eqx.nn.Linear(
@@ -242,7 +246,10 @@ class GPT(eqx.Module):
         return x
 
     def generate(
-        self, promt_idxs: Int[Array, "prompt_len"], max_pred_tokens: int, key: jax.random.PRNGKey
+        self,
+        promt_idxs: Int[Array, "prompt_len"],
+        max_pred_tokens: int,
+        key: jax.random.PRNGKey,
     ) -> Int[Array, "prompt_max_out_len"]:
 
         # [b t]
@@ -266,7 +273,7 @@ class GPT(eqx.Module):
             logits = jax.vmap(self.classifier)(x)
 
             # [b 1]
-            pred_idx = jnp.argmax(logits[-1, :], axis=-1,keepdims=True)
+            pred_idx = jnp.argmax(logits[-1, :], axis=-1, keepdims=True)
             # [b t+1]
             idxs = jnp.concatenate((idxs, pred_idx))
 

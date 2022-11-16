@@ -5,9 +5,9 @@ import dataclasses
 class AttentionConf:
     embed_dim: int
     num_heads: int
-    attn_drop_prob: float 
+    attn_drop_prob: float
     """ Dropout probability for attention weights """
-    resid_drop_prob: float 
+    resid_drop_prob: float
     """ Dropout probability for head mergin layer"""
 
     def __post_init__(self) -> None:
@@ -25,8 +25,6 @@ class GPTConf:
     embed_pdrop: float
 
 
-
-
 def get_schema(obj):
     assert dataclasses.is_dataclass(obj), f"{obj.__class__} must be a dataclass"
     schema = {}
@@ -38,6 +36,7 @@ def get_schema(obj):
 
     return schema
 
+
 def flatten_dataclass(obj):
     assert dataclasses.is_dataclass(obj), f"{obj.__class__} must be a dataclass"
 
@@ -48,7 +47,7 @@ def flatten_dataclass(obj):
             _data = flatten_dataclass(getattr(obj, field.name))
             data[field.name] = _data
         else:
-            val = getattr(obj, field.name) 
+            val = getattr(obj, field.name)
             if field.init:
                 data[field.name] = val
             else:
@@ -56,6 +55,7 @@ def flatten_dataclass(obj):
                 data[f"_generated field: {field.name}"] = val
 
     return data
+
 
 def to_struct(cls, data, schema):
     assembeled_ = {}
@@ -65,12 +65,12 @@ def to_struct(cls, data, schema):
         else:
             assembeled_[fname] = to_struct(_cls, data[fname], _schema)
 
-    for k,v in data.items():
-        if k  in schema:
+    for k, v in data.items():
+        if k in schema:
             continue
         assembeled_[k] = v
 
-    return cls(**assembeled_) 
+    return cls(**assembeled_)
 
 
 def build_from_data(cls, data):
@@ -85,10 +85,8 @@ def dict_map(kv_func, dict_tree) -> dict:
         if isinstance(v, dict):
             res[k] = dict_map(kv_func, v)
         else:
-            new_k, new_v = kv_func(k, v) 
+            new_k, new_v = kv_func(k, v)
             if new_k is not None:
                 res[new_k] = new_v
 
     return res
-
-

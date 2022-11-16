@@ -6,7 +6,6 @@ import jax.numpy as jnp
 from jaxtyping import Array
 
 
-
 class LayerNorm(eqx.Module):
     """
     Implementation of Layer Normalization.
@@ -14,8 +13,7 @@ class LayerNorm(eqx.Module):
 
     sigma_param: Array
     mu_param: Array
-    eps: float = 1e-5 # cargo cult pytorch
-    
+    eps: float = 1e-5  # cargo cult pytorch
 
     def __init__(self, shape: Sequence[int] | int) -> None:
         self.mu_param = jnp.zeros(shape)
@@ -26,7 +24,7 @@ class LayerNorm(eqx.Module):
         sig_sqr = jnp.var(x, keepdims=True)
         inv_std = jax.lax.rsqrt(sig_sqr + self.eps)
         normed = (x - mu) * inv_std
-        
+
         res = normed * self.sigma_param + self.mu_param
 
         return res
