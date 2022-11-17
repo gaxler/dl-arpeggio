@@ -6,6 +6,7 @@ max_value = 37
 max_seq_len = 5
 "_generated field: max_batch_seq_len" = 12
 "_generated field: vocab_size" = 41
+random_seq_ratio = 1.0
 
 [gpt]
 num_blocks = 7

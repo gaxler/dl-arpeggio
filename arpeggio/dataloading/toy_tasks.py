@@ -36,6 +36,7 @@ class SortingTask:
     """ max possible sequnce lenght. all batches are padded to this lenght """
     vocab_size: int = field(init=False)
     """ number of token in our dictionary. this is max value+1 and the pad, eos and arrow tokens """
+    random_seq_ratio: float = 1.0
 
     def __post_init__(self):
         max_val = self.max_value

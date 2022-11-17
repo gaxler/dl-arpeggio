@@ -231,7 +231,10 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
         log=trainer_conf.logging,
     )
 
-    dataloader = trainer_conf.task.get_dataloader(batch_size=trainer_conf.batch_size)
+    dataloader = trainer_conf.task.get_dataloader(
+        batch_size=trainer_conf.batch_size,
+        random_seq_len=trainer_conf.task.random_seq_ratio,
+    )
     sorting_task = trainer_conf.task
 
     for epoch_idx in range(trainer_conf.num_epochs):
@@ -244,7 +247,7 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
 
         print(f"Epoch: {epoch_idx+1}:")
         print("Rows:\n\tOut of dist Seq | GT Training Seq | Predicted Training Seq ")
-        prompts = ["3 7 5 ->", "11 5 17 7 ->", "11 5 17 7 13 19 ->"]
+        prompts = ["37 31 ->", "3 7 5 ->", "11 5 17 7 ->", "11 5 17 7 13 19 ->"]
         gen_tokens = [
             trainer.gen_from_tokens(sorting_task.txt_encode(txt)) for txt in prompts
         ]
@@ -254,7 +257,9 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
         tokens = batch.tokens[0, : batch.seq_len]
         gt_txt = sorting_task.token_decode(tokens.tolist())
         # send the unsorted + arrow as promt
-        gen_from_gt = trainer.gen_from_tokens(tokens[: batch.values_in_seq + 1])
+        gen_from_gt = sorting_task.token_decode(
+            trainer.gen_from_tokens(tokens[: batch.values_in_seq + 1])
+        )
 
         print(f"\t{ood_res}\n\n\t{gt_txt}\n\t{gen_from_gt}")
 
@@ -266,7 +271,7 @@ if __name__ == "__main__":
     prng_key = jrandom.PRNGKey(SEED)
 
     trainer_conf = TrainerConf.from_toml("base.toml")
+    # Always keep base.toml with full config spec
+    trainer_conf.to_toml("base.toml")
 
     gpt = train(trainer_conf, prng_key)
-
-
