@@ -109,7 +109,11 @@ class GPTTrainer:
             log = LoggingConf()
 
         return cls(
-            model=gpt, optimizer=opt, step_fn=step, log_conf=log, rng_key=rng_key
+            model=gpt,
+            optimizer=opt,
+            step_fn=step,
+            log_conf=log,
+            rng_key=rng_key,
         )
 
     def __init__(
@@ -179,9 +183,9 @@ class GPTTrainer:
             idxs, max_pred_tokens=idxs.shape[0], key=None  # self._rng_key()
         )
 
-    def gen_from_tokens(self, promt_idxs: Int[Array, "prompt_len"]) -> str:
+    def gen_from_tokens(self, promt_idxs: Int[Array, "prompt_len"]):
         idxs = self._gen(promt_idxs)
-        return sorting_task.token_decode(idxs.tolist())
+        return idxs.tolist()
 
     def gen_from_promt(self, prompt: str) -> str:
         promt_idxs = jnp.array(sorting_task.txt_encode(prompt))
@@ -240,10 +244,11 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
 
         print(f"Epoch: {epoch_idx+1}:")
         print("Rows:\n\tOut of dist Seq | GT Training Seq | Predicted Training Seq ")
-        gen = trainer.gen_from_promt("3 7 5 ->")
-        gen2 = trainer.gen_from_promt("11 5 17 7 ->")
-        gen3 = trainer.gen_from_promt("11 5 17 7 13 19 ->")
-        ood_res = "\n\t".join([gen, gen2, gen3])
+        prompts = ["3 7 5 ->", "11 5 17 7 ->", "11 5 17 7 13 19 ->"]
+        gen_tokens = [
+            trainer.gen_from_tokens(sorting_task.txt_encode(txt)) for txt in prompts
+        ]
+        ood_res = "\n\t".join([sorting_task.token_decode(toks) for toks in gen_tokens])
 
         batch: SampleBatch = next(dataloader)
         tokens = batch.tokens[0, : batch.seq_len]
@@ -262,38 +267,6 @@ if __name__ == "__main__":
 
     trainer_conf = TrainerConf.from_toml("base.toml")
 
-    # gpt = train(trainer_conf, prng_key)
+    gpt = train(trainer_conf, prng_key)
 
-    trainer = GPTTrainer.build_gpt_and_optimizers(
-        gpt_conf=trainer_conf.gpt,
-        opt_conf=trainer_conf.optimizers,
-        rng_key=prng_key,
-        log=trainer_conf.logging,
-    )
 
-    pass
-
-    # dataloader = trainer_conf.task.get_dataloader(batch_size=trainer_conf.batch_size)
-    # sorting_task = trainer_conf.task
-
-    # for epoch_idx in range(trainer_conf.num_epochs):
-
-    #     for batch in dataloader:
-    #         rng_keys = trainer.rng_key(num_keys=trainer_conf.batch_size)
-    #         is_epoch_end = trainer.step(batch.tokens, batch.loss_mask, rng_keys)
-    #         if is_epoch_end:
-    #             break
-
-    #     print(f"Epoch: {epoch_idx+1}:")
-    #     print("Rows:\n\tOut of dist Seq | GT Training Seq | Predicted Training Seq ")
-    #     gen = trainer.gen_from_promt("3 7 5 ->")
-    #     gen2 = trainer.gen_from_promt("11 5 17 7 ->")
-    #     ood_res = f"{gen}\n\t{gen2}"
-
-    #     batch: SampleBatch = next(dataloader)
-    #     tokens = batch.tokens[0, : batch.seq_len]
-    #     gt_txt = sorting_task.token_decode(tokens.tolist())
-    #     # send the unsorted + arrow as promt
-    #     gen_from_gt = trainer.gen_from_tokens(tokens[: batch.values_in_seq + 1])
-
-    #     print(f"\t{ood_res}\n\n\t{gt_txt}\n\t{gen_from_gt}")
