@@ -1,9 +1,12 @@
-from typing import Sequence
+from typing import Sequence, Union
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array
+
+
+NormShape = Union[int, Sequence[int]]
 
 
 class LayerNorm(eqx.Module):
@@ -15,7 +18,7 @@ class LayerNorm(eqx.Module):
     mu_param: Array
     eps: float = 1e-5  # cargo cult pytorch
 
-    def __init__(self, shape: Sequence[int] | int) -> None:
+    def __init__(self, shape: NormShape) -> None:
         self.mu_param = jnp.zeros(shape)
         self.sigma_param = jnp.ones(shape)
 

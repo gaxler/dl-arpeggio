@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Callable, Sequence, Tuple, Union
 
 import equinox as eqx
@@ -218,16 +218,53 @@ class TrainerConf:
             toml.dump(data, fp)
 
 
+def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey):
+    trainer = GPTTrainer.build_gpt_and_opitimizers(
+        gpt_conf=trainer_conf.gpt,
+        opt_conf=trainer_conf.optimizers,
+        rng_key=prng_key,
+        log=trainer_conf.logging,
+    )
+
+    dataloader = trainer_conf.task.get_dataloader(batch_size=trainer_conf.batch_size)
+    sorting_task = trainer_conf.task
+
+    for epoch_idx in range(trainer_conf.num_epochs):
+
+        for batch in dataloader:
+            rng_keys = trainer.rng_key(num_keys=trainer_conf.batch_size)
+            is_epoch_end = trainer.step(batch.tokens, batch.loss_mask, rng_keys)
+            if is_epoch_end:
+                break
+
+        print(f"Epoch: {epoch_idx+1}:")
+        print("Rows:\n\tOut of dist Seq | GT Training Seq | Predicted Training Seq ")
+        gen = trainer.gen_from_promt("3 7 5 ->")
+        gen2 = trainer.gen_from_promt("11 5 17 7 ->")
+        gen3 = trainer.gen_from_promt("11 5 17 7 13 19 ->")
+        ood_res = "\n\t".join([gen, gen2, gen3])
+
+        batch: SampleBatch = next(dataloader)
+        tokens = batch.tokens[0, : batch.seq_len]
+        gt_txt = sorting_task.token_decode(tokens.tolist())
+        # send the unsorted + arrow as promt
+        gen_from_gt = trainer.gen_from_tokens(tokens[: batch.values_in_seq + 1])
+
+        print(f"\t{ood_res}\n\n\t{gt_txt}\n\t{gen_from_gt}")
+
+    return
+
+
 if __name__ == "__main__":
     SEED = 1337
-    data_key, model_key = jrandom.split(jrandom.PRNGKey(SEED), 2)
+    prng_key = jrandom.PRNGKey(SEED)
 
     trainer_conf = TrainerConf.from_toml("base.toml")
 
-    trainer = GPTTrainer.build_gpt_and_optimizers(
+    trainer = GPTTrainer.build_gpt_and_opitimizers(
         gpt_conf=trainer_conf.gpt,
         opt_conf=trainer_conf.optimizers,
-        rng_key=model_key,
+        rng_key=prng_key,
         log=trainer_conf.logging,
     )
 

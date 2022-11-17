@@ -12,6 +12,9 @@ from .configs import AttentionConf, GPTConf
 from .normalizations import LayerNorm
 
 
+MaybeMask = Union[Bool[Array, "q_len kv_len"], None]
+
+
 def _prng_split(key: jax.random.PRNGKey, num_splits: int):
     """Split PRNG key or return Nones"""
     if key is None:
@@ -29,7 +32,7 @@ def gelu(x: Float[Array, "d"]) -> Float[Array, "d"]:
 def single_head_attn_weights(
     query: Float[Array, "q_len d"],
     key: Float[Array, "kv_len d"],
-    mask: Bool[Array, "q_len kv_len"] | None = None,
+    mask: MaybeMask = None,
 ):
     logits = jnp.einsum("qd,kd->qk", query, key)
     logits = logits / math.sqrt(1 / key.shape[-1])
@@ -43,7 +46,7 @@ def single_head_attn_weights(
 def compute_attn_weights(
     query: Float[Array, "num_heads q_len d"],
     key: Float[Array, "num_heads kv_len d"],
-    mask: Bool[Array, "num_heads q_len kv_len"] | None = None,
+    mask: MaybeMask = None,
 ) -> Float[Array, "num_head q_len kv_len"]:
 
     logits = jnp.einsum("hqd,hkd->hqk", query, key)
@@ -156,7 +159,7 @@ class TransformerBlock(eqx.Module):
     attn: CausalAttention
     mlp: TransformerMLP
 
-    def __init__(self, conf: AttentionConf, key: "jax.random.PRNGKey") -> None:
+    def __init__(self, conf: AttentionConf, key: "jax.random.PRNGKey" = None) -> None:
         embed_dim = conf.embed_dim
         self.ln_attn = LayerNorm(shape=embed_dim)
         self.ln_mlp = LayerNorm(shape=embed_dim)
@@ -167,7 +170,7 @@ class TransformerBlock(eqx.Module):
         )
 
     def __call__(
-        self, x: Float[Array, "t d"], key: "jax.random.PRNGKey"
+        self, x: Float[Array, "t d"], key: "jax.random.PRNGKey" = None
     ) -> Float[Array, "t d"]:
 
         _seq_len = x.shape[0]
