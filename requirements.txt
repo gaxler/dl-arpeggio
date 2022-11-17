@@ -1,4 +1,4 @@
-einops==0.4.1
+einops
 equinox==0.7.0
 jax==0.3.24
 jaxtyping==0.2.7
