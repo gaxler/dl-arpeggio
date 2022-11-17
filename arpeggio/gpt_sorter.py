@@ -184,7 +184,7 @@ class GPTTrainer:
         )
 
     def gen_from_tokens(self, promt_idxs: Int[Array, "prompt_len"]):
-        idxs = self._gen(promt_idxs)
+        idxs = self._gen(jnp.array(promt_idxs))
         return idxs.tolist()
 
     def gen_from_promt(self, prompt: str) -> str:
