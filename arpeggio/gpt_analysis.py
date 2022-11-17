@@ -1,18 +1,11 @@
 import math
 from einops import rearrange
-import equinox as eqx
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
 import jax.random as jrandom
 import numpy as np
-import optax
-from jaxtyping import Array, Int
 
-from losses import single_sample_xent
 from transformers.model import GPT, CausalAttention, TransformerBlock, TransformerMLP
-
-from dataloading.toy_tasks import SortingTask, SampleBatch
 
 
 from gpt_sorter import TrainerConf
