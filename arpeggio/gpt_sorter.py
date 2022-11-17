@@ -218,7 +218,7 @@ class TrainerConf:
             toml.dump(data, fp)
 
 
-def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey):
+def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
     trainer = GPTTrainer.build_gpt_and_opitimizers(
         gpt_conf=trainer_conf.gpt,
         opt_conf=trainer_conf.optimizers,
@@ -252,7 +252,7 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey):
 
         print(f"\t{ood_res}\n\n\t{gt_txt}\n\t{gen_from_gt}")
 
-    return
+    return trainer.model
 
 
 if __name__ == "__main__":
