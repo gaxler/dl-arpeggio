@@ -67,6 +67,7 @@ def build_optimizers(conf: OptimizerConf):
 @dataclass
 class LoggingConf:
     steps_per_epoch: int = 1000
+    ema_decay: float = 0.33
 
     def epoch_end(self, steps: int) -> bool:
         return steps > 0 and steps % self.steps_per_epoch == 0
@@ -77,18 +78,18 @@ class GPTTrainer:
     def build_gpt_and_optimizers(
         cls,
         gpt_conf: GPTConf,
-        opt_conf: OptimizerConf,
+        opt: optax.GradientTransformation,
         rng_key: "jax.random.PRNGKey",
         log: LoggingConf = None,
     ):
         # model & optimizer
         rng_key, gpt_init_key = jrandom.split(rng_key, 2)
         gpt = GPT(conf=gpt_conf, key=gpt_init_key)
-        opt = build_optimizers(opt_conf)
 
         # computing the loss & gradients
         @eqx.filter_value_and_grad
-        def compute_loss(model, x, mask, keys):
+        def compute_loss(model, x, mask, key):
+            keys = jrandom.split(key, x.shape[0])
             logits = jax.vmap(model)(x, keys)
             loss_vals = jax.vmap(jax.vmap(single_sample_xent))(
                 logits[:, :-1, :], x[:, 1:]
@@ -99,8 +100,8 @@ class GPTTrainer:
 
         # forward pass: comp loss and grads -> compute optimizer updates -> update model weights.
         @eqx.filter_jit
-        def step(model, x, mask, keys, param_update_fn, opt_state):
-            loss, grads = compute_loss(model, x, mask, keys)
+        def step(model, x, mask, param_update_fn, opt_state, prng_keys):
+            loss, grads = compute_loss(model, x, mask, prng_keys)
             updates, new_opt_state = param_update_fn(grads, opt_state, model)
             model = eqx.apply_updates(model, updates)
             return loss, model, new_opt_state
@@ -127,12 +128,12 @@ class GPTTrainer:
 
         self.model = model
         self.opt_state = optimizer.init(self.model)
-        self.grad_update = optimizer.update
+        self.grad_update_fn = optimizer.update
 
         self._step_fn = step_fn
 
         self._steps = 0
-        self.ema_logs = EMACollection(decay=0.33)
+        self.ema_logs = EMACollection(decay=log_conf.ema_decay)
         self.log_events = log_conf
         self._cur_rng = rng_key
 
@@ -156,7 +157,7 @@ class GPTTrainer:
     def step(self, *loss_fn_inp):
 
         loss_val, model, new_state = self._step_fn(
-            self.model, *loss_fn_inp, self.grad_update, self.opt_state
+            self.model, *loss_fn_inp, self.grad_update_fn, self.opt_state, self.rng_key()
         )
 
         self._steps += 1
@@ -186,13 +187,7 @@ class GPTTrainer:
     def gen_from_tokens(self, promt_idxs: Int[Array, "prompt_len"]):
         idxs = self._gen(jnp.array(promt_idxs))
         return idxs.tolist()
-
-    def gen_from_promt(self, prompt: str) -> str:
-        promt_idxs = jnp.array(sorting_task.txt_encode(prompt))
-        idxs = self._gen(promt_idxs)
-        return sorting_task.token_decode(idxs.tolist())
-
-
+    
 @dataclass
 class TrainerConf:
     task: SortingTask
@@ -226,7 +221,7 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
 
     trainer = GPTTrainer.build_gpt_and_optimizers(
         gpt_conf=trainer_conf.gpt,
-        opt_conf=trainer_conf.optimizers,
+        opt=build_optimizers(conf=trainer_conf.optimizers),
         rng_key=prng_key,
         log=trainer_conf.logging,
     )
@@ -237,17 +232,11 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
     )
     sorting_task = trainer_conf.task
 
-    for epoch_idx in range(trainer_conf.num_epochs):
 
-        for batch in dataloader:
-            rng_keys = trainer.rng_key(num_keys=trainer_conf.batch_size)
-            is_epoch_end = trainer.step(batch.tokens, batch.loss_mask, rng_keys)
-            if is_epoch_end:
-                break
-
-        print(f"Epoch: {epoch_idx+1}:")
+    def _generation_printout(epoch_num):
+        print(f"Epoch: {epoch_num}:")
         print("Rows:\n\tOut of dist Seq | GT Training Seq | Predicted Training Seq ")
-        prompts = ["37 31 ->", "3 7 5 ->", "11 5 17 7 ->", "11 5 17 7 13 19 ->"]
+        prompts = ["37 31 ->", "3 7 5 ->", "11 5 17 7 ->", "37 31 29 23 19 ->", "11 5 17 7 13 19 ->"]
         gen_tokens = [
             trainer.gen_from_tokens(sorting_task.txt_encode(txt)) for txt in prompts
         ]
@@ -262,6 +251,27 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
         )
 
         print(f"\t{ood_res}\n\n\t{gt_txt}\n\t{gen_from_gt}")
+
+
+    try:
+
+        for epoch_idx in range(trainer_conf.num_epochs):
+
+            for batch in dataloader:
+                # rng_keys = trainer.rng_key(num_keys=trainer_conf.batch_size)
+                # is_epoch_end = trainer.step(batch.tokens, batch.loss_mask, rng_keys)
+                is_epoch_end = trainer.step(batch.tokens, batch.loss_mask)
+                if is_epoch_end:
+                    break
+            if epoch_idx % 30 == 0:
+                _generation_printout(epoch_num=epoch_idx+1)
+
+    except KeyboardInterrupt:
+        # This function is ment to run in a notebook
+        # Want to be able to interrupt the run and return the lastest weights
+        print(f"KeyboardInterrupt: \n\t Returning the model after {trainer._steps*trainer_conf.batch_size} sequences")
+        print("\n------------------------\n")
+        _generation_printout(epoch_num=epoch_idx+1)
 
     return trainer.model
 

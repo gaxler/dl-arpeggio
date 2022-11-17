@@ -12,7 +12,7 @@ random_seq_ratio = 1.0
 num_blocks = 7
 vocab_size = 41
 max_seq_len = 12
-embed_pdrop = 0.3
+embed_pdrop = 0.1
 
 [optimizers]
 lr = 0.001
@@ -23,10 +23,11 @@ adam_beta1 = 0.9
 adam_beta2 = 0.999
 
 [logging]
-steps_per_epoch = 10
+steps_per_epoch = 3
+ema_decay = 0.33
 
 [gpt.attention]
 embed_dim = 128
 num_heads = 4
-attn_drop_prob = 0.3
+attn_drop_prob = 0.1
 resid_drop_prob = 0.1
