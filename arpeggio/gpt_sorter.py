@@ -1,5 +1,6 @@
 import functools as ft
 from dataclasses import dataclass
+import time
 from typing import Callable, Iterable, Sequence, Tuple, Union
 
 import equinox as eqx
@@ -354,7 +355,7 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
         print(f"\t{ood_res}\n\n\t{gt_txt}\n\t{gen_from_gt}")
 
     try:
-
+        tic = time.time()
         for epoch_idx in range(trainer_conf.num_epochs):
 
             for step_inp_args in make_per_device_iter(dataloader):
@@ -368,11 +369,16 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
     except KeyboardInterrupt:
         # This function is ment to run in a notebook
         # Want to be able to interrupt the run and return the lastest weights
-        print(
-            f"KeyboardInterrupt: \n\t Returning the model after {trainer._steps*trainer_conf.batch_size} sequences"
-        )
-        print("\n------------------------\n")
-        _generation_printout(epoch_num=epoch_idx + 1)
+        pass
+    tok = time.time() - tic
+    proced_seq = batch_size*num_local_devices*trainer._steps
+    seq_sec = proced_seq / tok
+    print(
+        f"KeyboardInterrupt: \n\t Returning the model after {proced_seq} sequences"
+    )
+    print(f"\t Processed {seq_sec:.3f} seq/sec.")
+    print("\n------------------------\n")
+    _generation_printout(epoch_num=epoch_idx + 1)
 
     return trainer.model
 
