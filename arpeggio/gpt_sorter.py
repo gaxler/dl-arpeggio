@@ -301,6 +301,7 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
     # this toy task generates its data. so every JAX process will run this.
     local_devices = jax.local_devices()
     num_local_devices = len(local_devices)
+    print(f"Found {num_local_devices} local devices and {jax.device_count()} global devices")
 
     trainer = GPTTrainer.build_gpt_and_optimizers(
         gpt_conf=trainer_conf.gpt,
