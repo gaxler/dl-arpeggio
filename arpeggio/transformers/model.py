@@ -2,6 +2,7 @@ import math
 from typing import Sequence, Tuple, Union, Callable
 
 import equinox as eqx
+from equinox import static_field
 import jax
 import optax
 import jax.numpy as jnp
@@ -65,7 +66,8 @@ class CausalAttention(eqx.Module):
     attn_dropout: eqx.nn.Dropout
     resid_dropout: eqx.nn.Dropout
 
-    n_heads: int
+    n_heads: int  = static_field()
+    embed_dim: int = static_field()
 
     def __init__(self, conf: AttentionConf, key: "jax.random.PRNGKey") -> None:
         kqv_key, head_proj_key = jrandom.split(key, num=2)
@@ -74,6 +76,7 @@ class CausalAttention(eqx.Module):
         self.kqv_enc = eqx.nn.Linear(
             in_features=conf.embed_dim, out_features=3 * conf.embed_dim, key=kqv_key
         )
+        self.embed_dim = conf.embed_dim
 
         # this is a simple matrix multiplication. we gonna VMAP it over the sequence dim when calling the forward
         self.head_proj = eqx.nn.Linear(
@@ -241,7 +244,7 @@ class GPT(eqx.Module):
 
         do_key, blocks_key = jrandom.split(key=key, num=2)
         x = tok_emb + pos_emb
-        x = self.dropout(x, key=do_key)
+        x = self.dropout(x, key=do_key, inference=do_key is None)
         for block, bk in zip(
             self.blocks, jrandom.split(blocks_key, num=len(self.blocks))
         ):
