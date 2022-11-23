@@ -12,6 +12,7 @@ NormShape = Union[int, Sequence[int]]
 class LayerNorm(eqx.Module):
     """
     Implementation of Layer Normalization.
+    NOTE: this thing is mot batched. single sample LN.
     """
 
     sigma_param: Array
