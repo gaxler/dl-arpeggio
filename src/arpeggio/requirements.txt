@@ -1,0 +1,7 @@
+einops
+equinox
+jax
+jaxtyping
+numpy
+optax
+toml
