@@ -165,6 +165,9 @@ class TransformerBlock(eqx.Module):
 
     def __init__(self, conf: AttentionConf, key: "jax.random.PRNGKey" = None) -> None:
         embed_dim = conf.embed_dim
+        # Layer norm applied to last dimension only
+        # note that the input to a transformer block has the shape of (t, d).
+        # layer norm is applied over d, and is the same for all t
         self.ln_attn = LayerNorm(shape=embed_dim)
         self.ln_mlp = LayerNorm(shape=embed_dim)
         attn_key, mlp_key = jrandom.split(key, 2)
@@ -183,12 +186,15 @@ class TransformerBlock(eqx.Module):
         else:
             attn_key, mlp_key = jrandom.split(key, 2)
             mlp_keys = jrandom.split(mlp_key, num=_seq_len)
+        
 
-        x = x + self.attn(self.ln_attn(x), do_key=attn_key)
+        _ln_attn = jax.vmap(self.ln_attn) 
+        x = x + self.attn(_ln_attn(x), do_key=attn_key)
 
+        _ln_mlp = jax.vmap(self.ln_mlp)
         _mlp = jax.vmap(self.mlp, in_axes=(0, 0))
 
-        x = x + _mlp(self.ln_mlp(x), mlp_keys)
+        x = x + _mlp(_ln_mlp(x), mlp_keys)
 
         return x
 
@@ -220,7 +226,6 @@ class GPT(eqx.Module):
             key=pos_key, shape=(self.max_seq_len, self.embed_dim)
         )
 
-        self.final_ln = LayerNorm(self.embed_dim)
         block_keys = jrandom.split(blcoks_key, num=conf.num_blocks)
         self.blocks = [
             TransformerBlock(conf=conf.attention, key=bk) for bk in block_keys
@@ -250,7 +255,7 @@ class GPT(eqx.Module):
         ):
             x = block(x, key=bk)
 
-        x = self.final_ln(x)
+        x = jax.vmap(self.final_ln)(x)
         x = jax.vmap(self.classifier)(x)
         return x
 
