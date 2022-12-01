@@ -2,3 +2,6 @@ __pycache__/
  *.pyc
 .vscode/
 .env
+src/DL_Argpeggion.egg-info/
+book/
+gcp_utils/
