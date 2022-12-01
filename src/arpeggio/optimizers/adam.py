@@ -1,18 +1,19 @@
-from ast import Tuple
+from typing import Tuple
 from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import PyTree
-from typing import Sequence
+from typing import Callable, Sequence, Union
 
+import optax
 from optax._src.base import GradientTransformation
 
 params_only = lambda t: eqx.filter(t, eqx.is_inexact_array, replace=None)
 zeros_like = lambda p: jnp.zeros_like(p, dtype=jax.dtypes.canonicalize_dtype(p.dtype))
 
 
-@dataclass
+@dataclass(frozen=True)
 class AdamState:
     steps: int
     first_moment: PyTree
@@ -33,7 +34,11 @@ def ema_moment(grads: PyTree, ema: PyTree, decay: float, moment: int) -> PyTree:
     return jax.tree_util.tree_map(update_moment, grads, ema)
 
 
-def build_adam(b1: float, b2: float, eps: float = 1e-8):
+def scale_by_learning_rate(lr: Union[float, Callable]):
+    pass
+
+
+def build_adam_transform(b1: float, b2: float, eps: float = 1e-8) -> GradientTransformation:
     """
     Made this to be compatible with optax. I don't want to re-build the whole of optax, only the interesting parts (that is parts that do actual optimization)
     Returns the EMA gradients scaled by the EMA second moment of gradients.
@@ -66,5 +71,17 @@ def build_adam(b1: float, b2: float, eps: float = 1e-8):
     return GradientTransformation(init=init_adam, update=adam_update_fn)
 
 
-if __name__ == "__main__":
-    init_moments({})
+def global_lr(lr: Union[Callable, float]) -> GradientTransformation:
+    if callable(lr):
+        return optax.scale_by_schedule(lambda steps: -lr(steps))
+    else:
+        return optax.scale(-lr)
+
+
+def adam_opt(learning_rate: Union[float, Callable], b1:float=0.9, b2: float=0.999, eps: float=1e-8):
+    adam_transform = build_adam_transform(b1=b1, b2=b2, eps=eps)
+    return optax.chain(
+        adam_transform,
+        global_lr(lr=learning_rate)
+    ) 
+

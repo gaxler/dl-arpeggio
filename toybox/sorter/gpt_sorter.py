@@ -12,12 +12,19 @@ import numpy as np
 import optax
 from jaxtyping import Array, Int
 
-from losses import single_sample_xent
-from transformers.configs import GPTConf, build_from_data, flatten_dataclass, dict_map
-from transformers.model import GPT
+from arpeggio.losses import single_sample_xent
+from arpeggio.transformers.configs import (
+    GPTConf,
+    build_from_data,
+    flatten_dataclass,
+    dict_map,
+)
+from arpeggio.transformers.model import GPT
 
-from dataloading.toy_tasks import SortingTask, SampleBatch
-from log_utils.collections import EMACollection
+from arpeggio.dataloading.toy_tasks import SortingTask, SampleBatch
+from arpeggio.log_utils.collections import EMACollection
+
+from arpeggio.optimizers import adam_opt
 
 
 @dataclass
@@ -56,6 +63,9 @@ class OptimizerConf:
         optim = optax.chain(
             optax.clip_by_global_norm(self.clip_grad_norm),
             optax.masked(
+                # TODO: this is more work than i thougt to make my optimzers play nice with optax.
+                # this can be my own project to greate a monad from the Transform type. but this is really out of scope. for now
+                # adam_opt(learning_rate=self.lr, b1=self.adam_beta1, b2=self.adam_beta2),
                 optax.adam(
                     learning_rate=self.lr, b1=self.adam_beta1, b2=self.adam_beta2
                 ),
@@ -301,7 +311,9 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
     # this toy task generates its data. so every JAX process will run this.
     local_devices = jax.local_devices()
     num_local_devices = len(local_devices)
-    print(f"Found {num_local_devices} local devices and {jax.device_count()} global devices")
+    print(
+        f"Found {num_local_devices} local devices and {jax.device_count()} global devices"
+    )
 
     trainer = GPTTrainer.build_gpt_and_optimizers(
         gpt_conf=trainer_conf.gpt,
@@ -372,11 +384,9 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
         # Want to be able to interrupt the run and return the lastest weights
         pass
     tok = time.time() - tic
-    proced_seq = batch_size*num_local_devices*trainer._steps
+    proced_seq = batch_size * num_local_devices * trainer._steps
     seq_sec = proced_seq / tok
-    print(
-        f"KeyboardInterrupt: \n\t Returning the model after {proced_seq} sequences"
-    )
+    print(f"KeyboardInterrupt: \n\t Returning the model after {proced_seq} sequences")
     print(f"\t Processed {seq_sec:.3f} seq/sec.")
     print("\n------------------------\n")
     _generation_printout(epoch_num=epoch_idx + 1)

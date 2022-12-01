@@ -12,6 +12,12 @@ NormShape = Union[int, Sequence[int]]
 class LayerNorm(eqx.Module):
     """
     Implementation of Layer Normalization.
+
+    This layer normalizes over all the input dimensions.
+    This is a JAX style thing, to leave some dimensions out, simplt `vmap` over them.
+
+    :param shape: Shape parameter determines the shape of learned mean and std parameters.
+
     """
 
     sigma_param: Array
