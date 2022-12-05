@@ -15,6 +15,7 @@ from .normalizations import LayerNorm
 
 
 MaybeMask = Union[Bool[Array, "q_len kv_len"], None]
+GPTTokenSeq = Int[Array, "inp_seq_len"] 
 
 
 def _prng_split(key: jax.random.PRNGKey, num_splits: int):
@@ -237,7 +238,7 @@ class GPT(eqx.Module):
         )
 
     def __call__(
-        self, idxs: Int[Array, "inp_seq_len"], key: "jax.random.PRNGKey"
+        self, idxs: GPTTokenSeq, key: "jax.random.PRNGKey"
     ) -> Float[Array, "num_tokens"]:
         inp_seq_len = idxs.shape[0]
         pos_idxs = jnp.arange(0, inp_seq_len)
@@ -299,76 +300,3 @@ class GPT(eqx.Module):
             idxs = jnp.concatenate((idxs, pred_idx))
 
         return idxs
-
-class GPTTrainer:
-    
-    def __init__(
-        self,
-        model: eqx.Module,
-        optimizer: optax.GradientTransformation,
-        step_fn: Callable,
-        log_conf: "LoggingConf",
-        rng_key: jax.random.PRNGKey,
-    ) -> None:
-
-        self.model = model
-        self.opt_state = optimizer.init(self.model)
-        self.grad_update = optimizer.update
-
-        self._step_fn = step_fn
-
-        self._steps = 0
-        self.ema_logs = EMACollection(decay=log_conf.ema_decay)
-        self.log_events = log_conf
-        self._cur_rng = rng_key
-
-    def rng_key(
-        self, num_keys: int = 1
-    ) -> Union[jax.random.PRNGKey, Sequence[jax.random.PRNGKey]]:
-        keys = jrandom.split(self._cur_rng, num=num_keys + 1)
-        out, self._cur_rng = keys[:-1], keys[-1]
-        if len(out) == 1:
-            return out[0]
-        return out
-
-    def log_loss(self, loss_val):
-        ema_loss = self.ema_logs.add(float(loss_val), "loss")
-
-        if self.log_events.epoch_end(self._steps):
-            print(f"[{self._steps:05d}] Loss: {ema_loss:.4f}")
-
-        return
-
-    def step(self, *loss_fn_inp):
-
-        loss_val, model, new_state = self._step_fn(
-            self.model, *loss_fn_inp, self.grad_update, self.opt_state
-        )
-
-        self._steps += 1
-        self.log_loss(loss_val)
-
-        self.model = model
-        self.opt_state = new_state
-
-        return self.log_events.epoch_end(self._steps)
-
-    def predict(self, tokens: Array) -> Tuple[Array, Array]:
-        if tokens.ndim > 1:
-            bsize = tokens.shape[0]
-            res = jax.vmap(self.model)(tokens, self.rng_key(num_keys=bsize))
-        else:
-            res = self.model(tokens, self.rng_key())
-
-        pred = jnp.argmax(res, axis=-1)
-
-        return res, pred
-
-    def _gen(self, idxs):
-        return self.model.generate(
-            idxs, max_pred_tokens=idxs.shape[0], key=None  # self._rng_key()
-        )
-
-    def gen_from_tokens(self, promt_idxs: Int[Array, "prompt_len"]):
-        idxs = self._gen(jnp.array(promt_idxs))
-        return idxs.tolist()
