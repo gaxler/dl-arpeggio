@@ -340,7 +340,7 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
             batched_inputs = tuple(_add_axis(batch.tokens, batch.loss_mask))
             yield batched_inputs + (trainer.rng_key(num_local_devices),)
 
-    sorting_task = trainer_conf.task
+    txt_encode, token_decode = trainer_conf.task.txt_encode, trainer_conf.task.token_decode
 
     def _generation_printout(epoch_num):
         print(f"Epoch: {epoch_num}:")
@@ -353,15 +353,15 @@ def train(trainer_conf: TrainerConf, prng_key: jax.random.PRNGKey) -> GPT:
             "11 5 17 7 13 19 ->",
         ]
         gen_tokens = [
-            trainer.gen_from_tokens(sorting_task.txt_encode(txt)) for txt in prompts
+            trainer.gen_from_tokens(txt_encode(txt)) for txt in prompts
         ]
-        ood_res = "\n\t".join([sorting_task.token_decode(toks) for toks in gen_tokens])
+        ood_res = "\n\t".join([token_decode(toks) for toks in gen_tokens])
 
         batch: SampleBatch = next(dataloader)
         tokens = batch.tokens[0, : batch.seq_len]
-        gt_txt = sorting_task.token_decode(tokens.tolist())
+        gt_txt = token_decode(tokens.tolist())
         # send the unsorted + arrow as promt
-        gen_from_gt = sorting_task.token_decode(
+        gen_from_gt = token_decode(
             trainer.gen_from_tokens(tokens[: batch.values_in_seq + 1])
         )
 

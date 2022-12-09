@@ -9,11 +9,9 @@ that is the -> indicates that now its time to start a sorted outoput
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Sequence, Tuple
+from typing import Iterable, Sequence 
 from jaxtyping import Array, Int, Float
-import jax.random as jrandom
 import numpy as np
-import jax
 import jax.numpy as jnp
 
 # T is max possible sequnce lenght
